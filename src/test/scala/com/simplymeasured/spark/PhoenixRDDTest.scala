@@ -93,7 +93,14 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
     val rdd = PhoenixRDD.NewPhoenixRDD(sc, "localhost", "MyTable", Array("Foo", "Bar"),
       conf = new Configuration())
 
-    rdd.buildSql("MyTable", Array("Foo", "Bar")) should equal("SELECT \"Foo\", \"Bar\" FROM \"MyTable\"")
+    rdd.buildSql("MyTable", Array("Foo", "Bar"), None) should equal("SELECT \"Foo\", \"Bar\" FROM \"MyTable\"")
+  }
+
+  test("Can create valid SQL with predicate") {
+    val rdd = PhoenixRDD.NewPhoenixRDDWithPredicate(sc, "localhost", "MyTable", Array("Foo", "Bar"),
+      "WHERE Foo = Bar", conf = new Configuration())
+
+    rdd.buildSql("MyTable", Array("Foo", "Bar"), Some("WHERE Foo = Bar")) should equal("SELECT \"Foo\", \"Bar\" FROM \"MyTable\" WHERE Foo = Bar")
   }
 
   test("Can convert Phoenix schema") {

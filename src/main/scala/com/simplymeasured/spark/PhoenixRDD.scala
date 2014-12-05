@@ -32,8 +32,8 @@ import org.apache.spark.sql.{SQLContext, SchemaRDD}
 import scala.collection.JavaConverters._
 
 class PhoenixRDD(sc: SparkContext, host: String, table: String,
-                 columns: Seq[String], batchSize: Long = 100,
-                 @transient conf: Configuration)
+                 columns: Seq[String], predicate: Option[String] = None,
+                 batchSize: Long = 100, @transient conf: Configuration)
   extends RDD[PhoenixRecord](sc, Nil) with Logging {
 
   val hadoopConf = new SerializableWritable(conf)
@@ -73,7 +73,7 @@ class PhoenixRDD(sc: SparkContext, host: String, table: String,
     // This is just simply not serializable, so don't try.
     val phoenixConf = new PhoenixPigConfiguration(new Configuration(hadoopConf.value))
 
-    phoenixConf.setSelectStatement(buildSql(table, columns))
+    phoenixConf.setSelectStatement(buildSql(table, columns, predicate))
     phoenixConf.setSchemaType(SchemaType.QUERY)
     phoenixConf.setSelectColumns(columns.mkString(","))
 
@@ -82,8 +82,13 @@ class PhoenixRDD(sc: SparkContext, host: String, table: String,
     phoenixConf
   }
 
-  def buildSql(table: String, columns: Seq[String]): String = {
-    "SELECT %s FROM \"%s\"" format(columns.map(f => "\"" + f + "\"").mkString(", "), table)
+  def buildSql(table: String, columns: Seq[String], predicate: Option[String]): String = {
+    val query = ("SELECT %s FROM \"%s\"" format(columns.map(f => "\"" + f + "\"").mkString(", "), table))
+
+    query + (predicate match {
+      case Some(pred: String) => " " + pred
+      case _ => ""
+    })
   }
 
   def toSchemaRDD(sqlContext: SQLContext): SchemaRDD = {
@@ -177,6 +182,11 @@ object PhoenixRDD {
   def NewPhoenixRDD(sc: SparkContext, host: String, table: String,
                     columns: Seq[String], batchSize: Long = 100,
                     conf: Configuration) = {
-    new PhoenixRDD(sc, host, table, columns, batchSize, conf)
+    new PhoenixRDD(sc, host, table, columns, None, batchSize, conf)
+  }
+  def NewPhoenixRDDWithPredicate(sc: SparkContext, host: String, table: String,
+                    columns: Seq[String], predicate: String,
+                    batchSize: Long = 100, conf: Configuration) = {
+    new PhoenixRDD(sc, host, table, columns, Some(predicate), batchSize, conf)
   }
 }

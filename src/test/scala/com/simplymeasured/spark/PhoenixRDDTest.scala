@@ -22,7 +22,7 @@ import org.apache.phoenix.schema.types.PVarchar
 import org.apache.phoenix.schema.{ColumnNotFoundException}
 import org.apache.phoenix.util.ColumnInfo
 import org.apache.spark.sql.SQLContext
-import org.apache.spark.sql.catalyst.types.{StringType, StructField}
+import org.apache.spark.sql.types.{StringType, StructField}
 import org.apache.spark.{SparkConf, SparkContext}
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
 
@@ -121,14 +121,14 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
 
     val rdd1 = PhoenixRDD.NewPhoenixRDD(sc, "TABLE1", Array("ID", "COL1"), conf = hbaseConfiguration)
 
-    val schemaRDD1 = rdd1.toSchemaRDD(sqlContext)
+    val dataFrame1 = rdd1.toDataFrame(sqlContext)
 
-    schemaRDD1.registerTempTable("sql_table_1")
+    dataFrame1.registerTempTable("sql_table_1")
 
     val rdd2 = PhoenixRDD.NewPhoenixRDD(sc, "TABLE2", Array("ID", "TABLE1_ID"),
       conf = hbaseConfiguration)
 
-    val schemaRDD2 = rdd2.toSchemaRDD(sqlContext)
+    val schemaRDD2 = rdd2.toDataFrame(sqlContext)
 
     schemaRDD2.registerTempTable("sql_table_2")
 
@@ -144,7 +144,7 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
 
     val rdd1 = PhoenixRDD.NewPhoenixRDD(sc, "table3", Array("id", "col1"), conf = hbaseConfiguration)
 
-    val schemaRDD1 = rdd1.toSchemaRDD(sqlContext)
+    val schemaRDD1 = rdd1.toDataFrame(sqlContext)
 
     schemaRDD1.registerTempTable("table3")
 
@@ -160,7 +160,7 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
 
     val rdd1 = PhoenixRDD.NewPhoenixRDD(sc, "TABLE1", Array("ID", "COL1"), conf = hbaseConfiguration)
 
-    val schemaRDD1 = rdd1.toSchemaRDD(sqlContext)
+    val schemaRDD1 = rdd1.toDataFrame(sqlContext)
 
     schemaRDD1.registerTempTable("sql_table_1")
 
@@ -168,7 +168,7 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
       predicate = Some("\"ID\" = 1"),
       conf = hbaseConfiguration)
 
-    val schemaRDD2 = rdd2.toSchemaRDD(sqlContext)
+    val schemaRDD2 = rdd2.toDataFrame(sqlContext)
 
     schemaRDD2.registerTempTable("sql_table_2")
 
@@ -187,7 +187,7 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
         predicate = Some("foo = bar"),
         conf = hbaseConfiguration)
 
-      val schemaRDD1 = rdd1.toSchemaRDD(sqlContext)
+      val schemaRDD1 = rdd1.toDataFrame(sqlContext)
 
       schemaRDD1.registerTempTable("table3")
 
@@ -205,7 +205,7 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
       predicate = Some("\"id\" = -1"),
       conf = hbaseConfiguration)
 
-    val schemaRDD1 = rdd1.toSchemaRDD(sqlContext)
+    val schemaRDD1 = rdd1.toDataFrame(sqlContext)
 
     schemaRDD1.registerTempTable("table3")
 
@@ -223,7 +223,7 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
       predicate = Some("ID > 0 AND TIMESERIES_KEY BETWEEN CAST(TO_DATE('1990-01-01 00:00:01', 'yyyy-MM-dd HH:mm:ss') AS TIMESTAMP) AND CAST(TO_DATE('1990-01-30 00:00:01', 'yyyy-MM-dd HH:mm:ss') AS TIMESTAMP)"),
       conf = hbaseConfiguration)
 
-    val schemaRDD1 = rdd1.toSchemaRDD(sqlContext)
+    val schemaRDD1 = rdd1.toDataFrame(sqlContext)
 
     schemaRDD1.registerTempTable("date_predicate_test_table")
 
@@ -240,7 +240,7 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
     val rdd1 = PhoenixRDD.NewPhoenixRDD(sc, "ARRAY_TEST_TABLE", Array("ID", "VCARRAY"),
       conf = hbaseConfiguration)
 
-    val schemaRDD1 = rdd1.toSchemaRDD(sqlContext)
+    val schemaRDD1 = rdd1.toDataFrame(sqlContext)
 
     schemaRDD1.registerTempTable("ARRAY_TEST_TABLE")
 

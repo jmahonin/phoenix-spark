@@ -25,11 +25,10 @@ import org.apache.spark._
 import org.apache.spark.annotation.DeveloperApi
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.expressions.GenericMutableRow
-import org.apache.spark.sql.catalyst.types._
-import org.apache.spark.sql.{SQLContext, SchemaRDD}
-
+import org.apache.spark.sql.types.{DataType, StructField, StructType}
+import org.apache.spark.sql.{Row, DataFrame, SQLContext}
+import org.apache.spark.sql.types._
 import scala.collection.JavaConverters._
-import scala.collection.mutable
 
 class PhoenixRDD(sc: SparkContext, table: String, columns: Seq[String],
                  predicate: Option[String] = None, @transient conf: Configuration)
@@ -86,7 +85,7 @@ class PhoenixRDD(sc: SparkContext, table: String, columns: Seq[String],
     })
   }
 
-  def toSchemaRDD(sqlContext: SQLContext): SchemaRDD = {
+  def toDataFrame(sqlContext: SQLContext): DataFrame = {
     val columnList = PhoenixConfigurationUtil.getSelectColumnMetadataList(new Configuration(phoenixConf)).asScala
 
     // The Phoenix ColumnInfo class is not serializable, but a Seq[String] is.
@@ -94,9 +93,9 @@ class PhoenixRDD(sc: SparkContext, table: String, columns: Seq[String],
       ci.getDisplayName
     })
 
-    val structFields = phoenixSchemaToCatalystSchema(columnList)
+    val structFields = phoenixSchemaToCatalystSchema(columnList).toArray
 
-    sqlContext.applySchema(map(pr => {
+    sqlContext.createDataFrame(map(pr => {
       val values = pr.resultMap
 
       val r = new GenericMutableRow(values.size)
@@ -108,7 +107,7 @@ class PhoenixRDD(sc: SparkContext, table: String, columns: Seq[String],
         i += 1
       }
 
-      r
+      r.asInstanceOf[Row]
     }), new StructType(structFields))
   }
 

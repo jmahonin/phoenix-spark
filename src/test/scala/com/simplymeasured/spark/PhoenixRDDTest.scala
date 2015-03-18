@@ -15,16 +15,23 @@
  */
 package com.simplymeasured.spark
 
-import java.sql.DriverManager
+import java.sql.{Connection, DriverManager}
 
-import org.apache.hadoop.hbase.HBaseTestingUtility
-import org.apache.phoenix.schema.types.PVarchar
+import org.apache.hadoop.conf.Configuration
+import org.apache.hadoop.hbase.{HBaseConfiguration, HBaseTestingUtility}
+import org.apache.hadoop.io.NullWritable
+import org.apache.phoenix.mapreduce.PhoenixOutputFormat
+import org.apache.phoenix.mapreduce.util.PhoenixConfigurationUtil
+import org.apache.phoenix.schema.types.{PInteger, PLong, PVarchar}
 import org.apache.phoenix.schema.{ColumnNotFoundException}
 import org.apache.phoenix.util.ColumnInfo
 import org.apache.spark.sql.SQLContext
 import org.apache.spark.sql.types.{StringType, StructField}
 import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.rdd._
 import org.scalatest.{BeforeAndAfterAll, FunSuite, Matchers}
+import scala.collection.JavaConversions._
+import scala.collection.mutable.ListBuffer
 
 class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
   lazy val hbaseTestingUtility = {
@@ -61,10 +68,12 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
     s"$quorumAddress:$zookeeperClientPort:$zookeeperZnodeParent"
   }
 
+  var conn: Connection = _
+
   override def beforeAll() {
     hbaseTestingUtility.startMiniCluster()
 
-    val conn = DriverManager.getConnection(s"jdbc:phoenix:$hbaseConnectionString")
+    conn = DriverManager.getConnection(s"jdbc:phoenix:$hbaseConnectionString")
 
     conn.setAutoCommit(true)
 
@@ -86,6 +95,7 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
   }
 
   override def afterAll() {
+    conn.close()
     hbaseTestingUtility.shutdownMiniCluster()
   }
 
@@ -254,5 +264,52 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
     arrayValues should equal(Array("String1", "String2", "String3"))
 
     count shouldEqual 1L
+  }
+
+  test("Can save to phoenix table") {
+    val sqlContext = new SQLContext(sc)
+
+    val dataSet = List((1L, "1", 1), (2L, "2", 2), (3L, "3", 3))
+    val rdd1 = sc.parallelize(dataSet)
+
+    // Setup Phoenix output configuration
+    val outputConf = new Configuration(hbaseConfiguration)
+    PhoenixConfigurationUtil.setOutputTableName(outputConf, "OUTPUT_TEST_TABLE")
+    PhoenixConfigurationUtil.setUpsertColumnNames(outputConf, "ID,COL1,COL2")
+
+    // Map to key/value types
+    val phxRdd: RDD[(NullWritable, PhoenixRecordWritable)] = rdd1.map {
+      case (id, col1, col2) => {
+        val rec = new PhoenixRecordWritable()
+        rec.add(id, PLong.INSTANCE.getSqlType)
+        rec.add(col1, PVarchar.INSTANCE.getSqlType)
+        rec.add(col2, PInteger.INSTANCE.getSqlType)
+        (null, rec)
+      }
+    }
+
+    // Save it
+    phxRdd.saveAsNewAPIHadoopFile(
+      "",
+      classOf[NullWritable],
+      classOf[PhoenixRecordWritable],
+      classOf[PhoenixOutputFormat[PhoenixRecordWritable]],
+      outputConf
+    )
+
+    // Load the results back
+    val stmt = conn.createStatement()
+    val rs = stmt.executeQuery("SELECT * FROM OUTPUT_TEST_TABLE")
+    val results = ListBuffer[(Long, String, Int)]()
+    while(rs.next()) {
+      results.append((rs.getLong(1), rs.getString(2), rs.getInt(3)))
+    }
+    stmt.close()
+
+
+    // Verify they match
+    (0 to results.size - 1).foreach { i =>
+      dataSet(i) shouldEqual results(i)
+    }
   }
 }

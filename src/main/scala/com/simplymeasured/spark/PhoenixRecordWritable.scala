@@ -15,47 +15,45 @@
  */
 package com.simplymeasured.spark
 
-import java.io.{DataOutput, DataInput}
 import java.sql.{PreparedStatement, ResultSet}
-
 import org.apache.hadoop.mapreduce.lib.db.DBWritable
-import org.apache.hadoop.io.Writable
-import org.apache.phoenix.schema.types.PhoenixArray
+import org.apache.phoenix.schema.types.{PDataType, PhoenixArray}
+import scala.collection.{immutable, mutable}
 
-import scala.collection.immutable
-import scala.collection.mutable
-
-class PhoenixRecordWritable extends DBWritable with Writable {
+class PhoenixRecordWritable extends DBWritable {
   val resultMap = mutable.Map[String, AnyRef]()
 
   def result : immutable.Map[String, AnyRef] = {
     resultMap.toMap
   }
 
-  override def write(preparedStatement: PreparedStatement): Unit = {
-    throw new UnsupportedOperationException("This is unsupported in this context")
+  val upsertValues = mutable.ArrayBuffer[(Any, Int)]()
+
+  override def write(statement: PreparedStatement): Unit = {
+    upsertValues.zipWithIndex.map { case (s, i) => {
+        if (s != null) {
+          statement.setObject(i + 1, s._1, s._2)
+        } else {
+          statement.setNull(i + 1, s._2)
+        }
+      }
+    }
   }
 
   override def readFields(resultSet: ResultSet): Unit = {
     val metadata = resultSet.getMetaData
-
     for(i <- 1 to metadata.getColumnCount) {
-      val value = resultSet.getObject(i)
 
-      val finalValue = value match {
-        case x: PhoenixArray => value.asInstanceOf[PhoenixArray].getArray
-        case y => value
+      val value = resultSet.getObject(i) match {
+        case x: PhoenixArray => x.getArray
+        case y => y
       }
 
-      resultMap(metadata.getColumnLabel(i)) = finalValue
+      resultMap(metadata.getColumnLabel(i)) = value
     }
   }
 
-  override def write(dataOutput: DataOutput): Unit = {
-    // intentionally non-op
-  }
-
-  override def readFields(dataInput: DataInput): Unit = {
-    // intentionally non-op
+  def add(value: Any, sqlType: Int): Unit = {
+    upsertValues.append((value, sqlType))
   }
 }

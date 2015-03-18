@@ -18,7 +18,7 @@ package com.simplymeasured.spark
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.io.NullWritable
 import org.apache.phoenix.mapreduce.PhoenixInputFormat
-import org.apache.phoenix.mapreduce.util.PhoenixConfigurationUtil
+import org.apache.phoenix.mapreduce.util.{ColumnInfoToStringEncoderDecoder, PhoenixConfigurationUtil}
 import org.apache.phoenix.schema.types._
 import org.apache.phoenix.util.ColumnInfo
 import org.apache.spark._

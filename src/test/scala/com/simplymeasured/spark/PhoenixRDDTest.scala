@@ -21,7 +21,7 @@ import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.hbase.{HBaseConfiguration, HBaseTestingUtility}
 import org.apache.hadoop.io.NullWritable
 import org.apache.phoenix.mapreduce.PhoenixOutputFormat
-import org.apache.phoenix.mapreduce.util.PhoenixConfigurationUtil
+import org.apache.phoenix.mapreduce.util.{ColumnInfoToStringEncoderDecoder, PhoenixConfigurationUtil}
 import org.apache.phoenix.schema.types.{PInteger, PLong, PVarchar}
 import org.apache.phoenix.schema.{ColumnNotFoundException}
 import org.apache.phoenix.util.ColumnInfo
@@ -277,19 +277,24 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
     PhoenixConfigurationUtil.setOutputTableName(outputConf, "OUTPUT_TEST_TABLE")
     PhoenixConfigurationUtil.setUpsertColumnNames(outputConf, "ID,COL1,COL2")
 
+    // Encode the column info to a serializable type
+    val encodedColumns = ColumnInfoToStringEncoderDecoder.encode(
+      PhoenixConfigurationUtil.getUpsertColumnMetadataList(outputConf)
+    )
+
     // Map to key/value types
-    val phxRdd: RDD[(NullWritable, PhoenixRecordWritable)] = rdd1.map {
+    val phxRDD: RDD[(NullWritable, PhoenixRecordWritable)] = rdd1.map {
       case (id, col1, col2) => {
-        val rec = new PhoenixRecordWritable()
-        rec.add(id, PLong.INSTANCE.getSqlType)
-        rec.add(col1, PVarchar.INSTANCE.getSqlType)
-        rec.add(col2, PInteger.INSTANCE.getSqlType)
+        val rec = new PhoenixRecordWritable(encodedColumns)
+        rec.add(id)
+        rec.add(col1)
+        rec.add(col2)
         (null, rec)
       }
     }
 
     // Save it
-    phxRdd.saveAsNewAPIHadoopFile(
+    phxRDD.saveAsNewAPIHadoopFile(
       "",
       classOf[NullWritable],
       classOf[PhoenixRecordWritable],
@@ -305,7 +310,6 @@ class PhoenixRDDTest extends FunSuite with Matchers with BeforeAndAfterAll {
       results.append((rs.getLong(1), rs.getString(2), rs.getInt(3)))
     }
     stmt.close()
-
 
     // Verify they match
     (0 to results.size - 1).foreach { i =>

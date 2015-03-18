@@ -17,24 +17,35 @@ package com.simplymeasured.spark
 
 import java.sql.{PreparedStatement, ResultSet}
 import org.apache.hadoop.mapreduce.lib.db.DBWritable
+import org.apache.phoenix.mapreduce.util.ColumnInfoToStringEncoderDecoder
 import org.apache.phoenix.schema.types.{PDataType, PhoenixArray}
 import scala.collection.{immutable, mutable}
+import scala.collection.JavaConversions._
 
-class PhoenixRecordWritable extends DBWritable {
+class PhoenixRecordWritable(var encodedColumns: String) extends DBWritable {
+  val upsertValues = mutable.ArrayBuffer[Any]()
+
   val resultMap = mutable.Map[String, AnyRef]()
 
   def result : immutable.Map[String, AnyRef] = {
     resultMap.toMap
   }
 
-  val upsertValues = mutable.ArrayBuffer[(Any, Int)]()
-
   override def write(statement: PreparedStatement): Unit = {
-    upsertValues.zipWithIndex.map { case (s, i) => {
-        if (s != null) {
-          statement.setObject(i + 1, s._1, s._2)
+    // Decode the ColumnInfo list
+    val columns = ColumnInfoToStringEncoderDecoder.decode(encodedColumns).toList
+
+    // Make sure we at least line up in size
+    if(upsertValues.length != columns.length) {
+      throw new UnsupportedOperationException(s"Number of fields ($upsertValues.length) does not equal column size ($columns.length)")
+    }
+
+    // Each value (v) corresponds to a column type (c) and an index (i)
+    upsertValues.zip(columns).zipWithIndex.map { case ((v, c), i) => {
+        if (v != null) {
+          statement.setObject(i + 1, v, c.getSqlType)
         } else {
-          statement.setNull(i + 1, s._2)
+          statement.setNull(i + 1, c.getSqlType)
         }
       }
     }
@@ -53,7 +64,16 @@ class PhoenixRecordWritable extends DBWritable {
     }
   }
 
-  def add(value: Any, sqlType: Int): Unit = {
-    upsertValues.append((value, sqlType))
+  def add(value: Any): Unit = {
+    upsertValues.append(value)
+  }
+
+  // Empty constructor to satisfy hadoop reflection
+  def this() = {
+    this("")
+  }
+
+  def setEncodedColumns(encodedColumns: String) {
+    this.encodedColumns = encodedColumns
   }
 }

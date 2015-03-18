@@ -5,7 +5,7 @@
 
   <groupId>com.simplymeasured.spark</groupId>
   <artifactId>phoenix-spark</artifactId>
-  <version>0.0.3-SNAPSHOT</version>
+  <version>0.0.4-int-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>phoenix-spark</name>
